@@ -735,7 +735,7 @@ function mostrarModo(m){
   $("modo-treino").hidden = m!=="treino"; $("modo-torneio").hidden = m!=="torneio";
   document.body.classList.toggle("modo-torneio", m==="torneio");
   $("modo-btn-treino").setAttribute("aria-pressed", String(m==="treino")); $("modo-btn-torneio").setAttribute("aria-pressed", String(m==="torneio"));
-  if (m==="torneio" && !torneio) torneio = montarTorneio({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch }, esporte:"basquete", col:"basquete_torneios", maxAtletas:10, toast, root:$("torneio-root"), podeEditar:()=>isAdmin||isEditor, marca:{ titulo:"Família Basquete Mococa", logo:"logo.jpg", escura:"#0c0c0d", cor:"#3f9a3c", destaque:"#ec6a2c" } });
+  if (m==="torneio" && !torneio) torneio = montarTorneio({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch }, midias:{ app:"basquete", perfis:[{ usuario:"basketmococa", nome:"Basquete Mococa" }], hashtags:"#basquete #basketmococa #mococa" }, autor:()=>user ? (user.email||"") : null, esporte:"basquete", col:"basquete_torneios", maxAtletas:10, toast, root:$("torneio-root"), podeEditar:()=>isAdmin||isEditor, marca:{ titulo:"Família Basquete Mococa", logo:"logo.jpg", escura:"#0c0c0d", cor:"#3f9a3c", destaque:"#ec6a2c" } });
   atualizarAcesso();
 }
 $("modo-btn-treino").onclick=()=>mostrarModo("treino");
