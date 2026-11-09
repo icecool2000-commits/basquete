@@ -63,6 +63,10 @@ button:disabled{opacity:.5;cursor:default}
 .info input{padding:2px 0;border:0;border-bottom:1px dashed var(--line);border-radius:0;background:transparent;font-weight:600}
 .confirm-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .confirm-box form{display:flex;gap:8px}
+.am-bar{display:flex;gap:8px;flex-wrap:wrap}.am-bar button{flex:1 1 160px}
+.am-form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1 1 140px;min-width:0}
+.am-linha{display:flex;gap:8px;flex-wrap:wrap}.am-linha > *{flex:1 1 140px}
+.am-vs{margin:0;padding:10px 12px;border-radius:12px;background:var(--surface);border:2px solid #ec6a2c;font-weight:700;text-align:center}
 .me{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .me b{font-size:18px}
 .linkish{background:none;border:0;color:var(--accent);padding:0;font-weight:500;text-decoration:underline;cursor:pointer}
@@ -170,7 +174,26 @@ footer{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13p
 
   <!-- TREINO -->
   <section id="p-treino">
-    <select id="sel-data" aria-label="Escolha o treino"></select>
+    <select id="sel-data" aria-label="Escolha o treino ou o amistoso"></select>
+    <div class="am-bar" id="am-bar" hidden>
+      <button type="button" class="ghost" id="btn-novo-am">+ Lista de jogo amistoso</button>
+      <button type="button" class="ghost" id="btn-edit-am" hidden>Editar amistoso</button>
+    </div>
+    <form class="confirm-box am-form" id="am-form" hidden>
+      <b id="am-form-tit">Novo jogo amistoso</b>
+      <label>Contra quem<input id="am-adv" maxlength="60" placeholder="Ex.: Basquete São José do Rio Pardo" required></label>
+      <div class="am-linha">
+        <label>Data<input id="am-data" type="date" required></label>
+        <label>Horário<input id="am-hora" type="time" required></label>
+      </div>
+      <label>Local<input id="am-local" maxlength="80" placeholder="Ex.: Ginásio Municipal" required></label>
+      <div class="am-linha">
+        <button type="submit" id="am-salvar">Criar lista</button>
+        <button type="button" class="ghost" id="am-cancelar">Cancelar</button>
+      </div>
+      <button type="button" class="danger" id="am-apagar" hidden>Apagar este amistoso</button>
+    </form>
+    <p class="am-vs" id="am-vs" hidden></p>
     <div class="info">
       <div><span>Dia</span><b id="i-dia">—</b></div>
       <div><span>Horário</span><b id="i-hora">—</b></div>
@@ -333,11 +356,27 @@ const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return n
 let user = null, isAdmin = false, isEditor = false, pararEditor = null, pararLista = null, torneio = null;
 let todas = [];           // {dia, id, nome, em(ms), uid}
 let treinosCfg = {};      // dia -> {local}
+let amistosos = {};       // id -> {data, hora, local, adv, inicio(Timestamp), criado}
+let presAm = [];          // presenças dos amistosos: {dia:"am:id", id, nome, em, uid}
+let amEditando = null;    // null | "novo" | id
+let amCarregou = false;
 let cfg = { local: "" };
 let atual = null, rkDia = "geral", rkPeriodo = "tudo", carregou = false;
 let meuNome = store.get("basquete-nome") || "";
+{ const q = new URLSearchParams(location.search).get("amistoso"); if (q && /^am-[a-z0-9]+$/.test(q)) atual = "am:"+q; } // link da lista do amistoso
 
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("on"),3000); }
+
+/* ---------- jogos amistosos: listas com data, hora, local e adversário escolhidos pelo organizador ---------- */
+const SEMANA = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+const amDe = id => id && id.startsWith("am:") ? amistosos[id.slice(3)] || null : null;
+const ehAm = id => !!id && id.startsWith("am:");
+const diaSemana = id => SEMANA[parse(ehAm(id) ? (amDe(id)||{data:hoje()}).data : id).getDay()];
+const dataDe = id => ehAm(id) ? (amDe(id)||{data:hoje()}).data : id;
+const horaDe = id => ehAm(id) ? (amDe(id)||{}).hora || "--:--" : HORA(parse(id).getDay());
+const inicioDe = id => ehAm(id) ? new Date(dataDe(id)+"T"+horaDe(id)+":00-03:00") : inicio(id);
+const passouDe = id => ehAm(id) ? Date.now() >= inicioDe(id).getTime() : passou(id);
+const presRef = (id, k) => ehAm(id) ? doc(db,"basquete_amistosos",id.slice(3),"basquete_presencas",k) : doc(db,"basquete_treinos",id,"basquete_presencas",k);
 
 // Horas que a lista fica aberta antes do treino (abre quando o treino anterior começa)
 const ABRE = {0:168};
@@ -354,7 +393,7 @@ function proximoTreino(){
 const hoje = () => iso(new Date());
 const passou = dia => !aberto(dia);
 
-function lista(dia){ return todas.filter(p=>p.dia===dia).sort((a,b)=>a.em-b.em); }
+function lista(dia){ return (ehAm(dia) ? presAm : todas).filter(p=>p.dia===dia).sort((a,b)=>a.em-b.em); }
 function diasComLista(){ return [...new Set(todas.map(p=>p.dia))]; }
 
 function datasDisponiveis(){
@@ -374,21 +413,32 @@ function renderSelect(){
     o.value=id; o.textContent=DIAS[d.getDay()]+", "+br(id)+(id===prox?" · aberto":(inicio(id).getTime()<=Date.now()?" · fechado":""))+(n?" · "+n+(n===1?" nome":" nomes"):"");
     sel.append(o);
   });
+  // amistosos (mais recentes primeiro)
+  const ams = Object.entries(amistosos).sort((a,b)=>(b[1].data+b[1].hora).localeCompare(a[1].data+a[1].hora));
+  if (ams.length){
+    const g=document.createElement("optgroup"); g.label="Jogos amistosos";
+    ams.forEach(([id,a])=>{ const k="am:"+id, n=lista(k).length, o=document.createElement("option"); o.value=k;
+      o.textContent="🆚 "+(a.adv||"Amistoso")+" · "+curto(a.data)+" "+a.hora+(passouDe(k)?" · fechado":" · aberto")+(n?" · "+n+(n===1?" nome":" nomes"):"");
+      g.append(o); });
+    sel.append(g);
+  }
+  if (ehAm(atual) && amCarregou && !amDe(atual)) atual = prox;
   sel.value=atual;
 }
-$("sel-data").onchange = e => { atual=e.target.value; renderTreino(); };
+$("sel-data").onchange = e => { atual=e.target.value; amEditando=null; renderTreino(); };
 
-function localDe(dia){ return (treinosCfg[dia] && treinosCfg[dia].local) || cfg.local || "AEM"; }
+function localDe(dia){ if (ehAm(dia)) return (amDe(dia)||{}).local || ""; return (treinosCfg[dia] && treinosCfg[dia].local) || cfg.local || "AEM"; }
 
 function textoTreino(){
-  const d=parse(atual), rows=lista(atual), loc=localDe(atual);
-  const L=["🏀 *FAMÍLIA BASQUETE MOCOCA* 🏀","📋 *LISTA DE PRESENÇA – TREINO*","",
-    "📅 "+DIAS[d.getDay()]+", "+br(atual),"⏰ Horário: "+HORA(d.getDay())];
+  const rows=lista(atual), loc=localDe(atual), a=amDe(atual);
+  const L=["🏀 *FAMÍLIA BASQUETE MOCOCA* 🏀", a ? "📋 *LISTA DE PRESENÇA – JOGO AMISTOSO*" : "📋 *LISTA DE PRESENÇA – TREINO*",""];
+  if (a) L.push("🆚 *Família Basquete Mococa x "+(a.adv||"a definir")+"*","");
+  L.push("📅 "+diaSemana(atual)+", "+br(dataDe(atual)),"⏰ Horário: "+horaDe(atual));
   if (loc) L.push("📍 Local: "+loc);
   L.push("","✅ *Confirmados ("+rows.length+"):*");
   rows.forEach((r,i)=>L.push((i+1)+". "+r.nome));
   if (!rows.length) L.push("1. ");
-  L.push("","👉 Confirme a sua presença: "+location.origin+location.pathname);
+  L.push("","👉 Confirme a sua presença: "+location.origin+location.pathname+(ehAm(atual) ? "?amistoso="+atual.slice(3) : ""));
   return L.join("\n");
 }
 const wa = t => "https://wa.me/?text="+encodeURIComponent(t);
@@ -398,20 +448,24 @@ function minhaPresencaPorNome(){ return meuNome ? lista(atual).find(p=>key(p.nom
 
 function renderTreino(){
   if (!atual) return;
-  const d=parse(atual), rows=lista(atual), loc=localDe(atual);
-  $("i-dia").textContent = DIAS[d.getDay()]+" "+curto(atual);
-  $("i-hora").textContent = HORA(d.getDay());
+  const rows=lista(atual), loc=localDe(atual), AM=ehAm(atual), a=amDe(atual);
+  $("i-dia").textContent = diaSemana(atual)+" "+curto(dataDe(atual));
+  $("i-hora").textContent = horaDe(atual);
   $("i-local-ro").textContent = loc || "—";
   if (document.activeElement !== $("i-local")) $("i-local").value = loc;
-  $("i-local-ro").hidden = isAdmin; $("i-local").hidden = !isAdmin;
+  $("i-local-ro").hidden = isAdmin && !AM; $("i-local").hidden = !isAdmin || AM;
+  // amistoso: adversário em destaque; organizador cria/edita
+  $("am-vs").hidden = !AM; if (AM) $("am-vs").textContent = "🆚 Jogo amistoso contra "+((a && a.adv) || "—");
+  $("am-bar").hidden = !isAdmin || !!amEditando; $("btn-edit-am").hidden = !AM;
+  $("am-form").hidden = !isAdmin || !amEditando;
 
-  const old = passou(atual);
+  const old = passouDe(atual);
   const mine = (user && meuNome) ? rows.find(p=>p.uid===user.uid && key(p.nome)===key(meuNome)) : null;
   const jaPorNome = minhaPresencaPorNome();
   $("past-note").hidden = !old;
   if (old){
-    const futuro = Date.now() < abertura(atual).getTime();
-    $("past-note").textContent = futuro
+    const futuro = !AM && Date.now() < abertura(atual).getTime();
+    $("past-note").textContent = AM ? "🔒 Lista fechada: as confirmações encerraram às "+horaDe(atual)+", no horário do jogo."+(isAdmin?" Como organizador, você ainda pode corrigir.":"") : futuro
       ? "🔒 A lista deste treino abre "+fmtQuando(abertura(atual))+"."
       : "🔒 Lista fechada: as confirmações encerraram às "+HORA(parse(atual).getDay())+", no horário do treino."+(isAdmin?" Como organizador, você ainda pode corrigir.":"");
   }
@@ -459,7 +513,7 @@ async function adicionar(nome, comoAdmin){
   if (lista(atual).some(p=>key(p.nome)===key(nome))){ toast(nome+" já está na lista."); return false; }
   if (!user){ toast("Conectando… tente de novo em instantes."); return false; }
   try{
-    await setDoc(doc(db,"basquete_treinos",atual,"basquete_presencas",key(nome)), { nome, em: serverTimestamp(), uid: user.uid });
+    await setDoc(presRef(atual, key(nome)), { nome, em: serverTimestamp(), uid: user.uid });
     return nome;
   }catch(e){
     console.error(e);
@@ -484,7 +538,7 @@ $("admin-add").addEventListener("submit", async e=>{
 });
 
 async function remover(p){
-  try{ await deleteDoc(doc(db,"basquete_treinos",p.dia,"basquete_presencas",p.id)); toast(p.nome+" saiu da lista."); }
+  try{ await deleteDoc(presRef(p.dia, p.id)); toast(p.nome+" saiu da lista."); }
   catch(e){ console.error(e); toast("Não deu para tirar o nome."); }
 }
 $("btn-sair").onclick = ()=>{
@@ -504,6 +558,40 @@ $("i-local").addEventListener("input", ()=>{
     }catch(e){ toast("Não deu para salvar o local."); }
   },800);
 });
+
+// criar / editar / apagar amistoso (organizador)
+function abrirAmForm(modo){
+  amEditando = modo; const a = modo==="novo" ? null : amDe(atual);
+  $("am-form-tit").textContent = a ? "Editar jogo amistoso" : "Novo jogo amistoso";
+  $("am-salvar").textContent = a ? "Salvar" : "Criar lista";
+  $("am-adv").value = a ? a.adv||"" : ""; $("am-data").value = a ? a.data : proximoTreino(); $("am-hora").value = a ? a.hora : "10:00";
+  $("am-local").value = a ? a.local||"" : (cfg.local || "AEM");
+  $("am-apagar").hidden = !a; renderTreino(); $("am-adv").focus();
+}
+$("btn-novo-am").onclick = ()=>abrirAmForm("novo");
+$("btn-edit-am").onclick = ()=>abrirAmForm(atual.slice(3));
+$("am-cancelar").onclick = ()=>{ amEditando=null; renderTreino(); };
+$("am-form").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const adv=$("am-adv").value.trim().replace(/\s+/g," "), data=$("am-data").value, hora=$("am-hora").value, local=$("am-local").value.trim();
+  if (!adv || !/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}$/.test(hora)){ toast("Preencha contra quem, data e horário."); return; }
+  const id = amEditando==="novo" ? "am-"+Date.now().toString(36) : amEditando;
+  const ini = new Date(data+"T"+hora+":00-03:00");
+  try{
+    const dados = { adv, data, hora, local, inicio: Timestamp.fromMillis(ini.getTime()), ...(amEditando==="novo" ? { criado: Date.now() } : {}) };
+    await setDoc(doc(db,"basquete_amistosos",id), dados, { merge:true });
+    amistosos[id] = { ...(amistosos[id]||{}), ...dados };
+    toast(amEditando==="novo" ? "Lista do amistoso criada. Já pode mandar no grupo!" : "Amistoso atualizado.");
+    atual = "am:"+id; amEditando=null; renderAll();
+  }catch(err){ console.error(err); toast(err && err.code==="permission-denied" ? "Sem permissão: publique as regras novas do Firebase." : "Não deu para salvar o amistoso."); }
+});
+$("am-apagar").onclick = async ()=>{
+  const b=$("am-apagar"); if (!b.dataset.armado){ b.dataset.armado="1"; b.textContent="Toque de novo para apagar (some a lista)"; setTimeout(()=>{ delete b.dataset.armado; b.textContent="Apagar este amistoso"; },4000); return; }
+  const id=amEditando; try{
+    const batch=writeBatch(db); presAm.filter(p=>p.dia==="am:"+id).forEach(p=>batch.delete(presRef(p.dia,p.id))); batch.delete(doc(db,"basquete_amistosos",id)); await batch.commit();
+    amEditando=null; atual=proximoTreino(); toast("Amistoso apagado."); renderAll();
+  }catch(err){ console.error(err); toast("Não deu para apagar."); }
+};
 
 async function copiar(t){
   try{ await navigator.clipboard.writeText(t); toast("Copiado. É só colar no grupo."); }
@@ -706,7 +794,7 @@ function renderMetricas(){
 }
 
 /* ---------- comum ---------- */
-function nomesConhecidos(){ const m={}; [...todas].sort((a,b)=>a.em-b.em).forEach(p=>m[key(p.nome)]=p.nome); return Object.values(m).sort((a,b)=>a.localeCompare(b,"pt-BR")); }
+function nomesConhecidos(){ const m={}; [...todas, ...presAm].sort((a,b)=>a.em-b.em).forEach(p=>m[key(p.nome)]=p.nome); return Object.values(m).sort((a,b)=>a.localeCompare(b,"pt-BR")); }
 function renderAll(){
   renderSelect(); renderTreino(); renderPeriodos(); renderRanking(); renderHist(); if (!$("p-met").hidden) renderMetricas();
   const dl=$("nomes-conhecidos"); dl.textContent=""; nomesConhecidos().forEach(n=>{ const o=document.createElement("option"); o.value=n; dl.append(o); });
@@ -821,10 +909,12 @@ onAuthStateChanged(auth, async u=>{
 const timer = setTimeout(()=>{ if(!carregou) toast("A lista está demorando. Verifique a internet."); },10000);
 onSnapshot(collectionGroup(db,"basquete_presencas"), snap=>{
   carregou = true; clearTimeout(timer);
-  todas = snap.docs.map(s=>{ const x=s.data(); const em = x.em instanceof Timestamp ? x.em.toMillis() : (x.em ? Number(x.em) : Date.now()); return {dia:s.ref.parent.parent.id, id:s.id, nome:x.nome, em, uid:x.uid}; }).filter(p=>p.nome);
+  const tudo = snap.docs.map(s=>{ const x=s.data(); const em = x.em instanceof Timestamp ? x.em.toMillis() : (x.em ? Number(x.em) : Date.now()); const am = s.ref.parent.parent.parent && s.ref.parent.parent.parent.id === "basquete_amistosos"; return {dia:(am?"am:":"")+s.ref.parent.parent.id, id:s.id, nome:x.nome, em, uid:x.uid, am}; }).filter(p=>p.nome);
+  todas = tudo.filter(p=>!p.am); presAm = tudo.filter(p=>p.am);
   renderAll();
 }, e=>{ console.error(e); toast("Não foi possível carregar a lista."); });
 onSnapshot(collection(db,"basquete_treinos"), snap=>{ const m={}; snap.docs.forEach(s=>m[s.id]=s.data()); treinosCfg=m; renderTreino(); }, ()=>{});
+onSnapshot(collection(db,"basquete_amistosos"), snap=>{ const m={}; snap.docs.forEach(s=>m[s.id]=s.data()); amistosos=m; amCarregou=true; renderSelect(); renderTreino(); }, ()=>{});
 onSnapshot(doc(db,"basquete_config","geral"), s=>{ cfg = s.exists() ? {local:"",...s.data()} : {local:""}; renderTreino(); }, ()=>{});
 
 /* ---------- instalar ---------- */
@@ -858,7 +948,7 @@ setInterval(()=>{ const p=proximoTreino(); if (p!==renderSelect.ultimo){ if (atu
 renderSelect.ultimo = proximoTreino();
 renderAll();
 let modoIni="treino"; try{ modoIni = localStorage.getItem(MODO_KEY)||"treino"; }catch(e){}
-mostrarModo(modoIni==="torneio"?"torneio":"treino");
+mostrarModo(modoIni==="torneio" && !new URLSearchParams(location.search).get("amistoso") ? "torneio" : "treino");
 </script>
 </body>
 </html>
