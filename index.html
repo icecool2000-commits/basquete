@@ -45,8 +45,10 @@ h1 span{display:block;font-family:var(--body);font-weight:600;text-transform:upp
 .admin-pill{position:absolute;right:0;top:0}
 h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0;text-transform:uppercase;letter-spacing:.02em}
 .lane{height:6px;border-radius:3px;background:repeating-linear-gradient(90deg,var(--lane) 0 18px,var(--accent) 18px 36px)}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--soft);padding:4px;border-radius:12px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
-.tabs button{background:transparent;color:var(--fg);padding:9px 2px;font-size:14px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:var(--soft);padding:4px;border-radius:12px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.tabs button{background:transparent;color:var(--fg);padding:9px 2px;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tabs button.vivo{color:#ff4d55;font-weight:700}
+.tabs button.vivo[aria-selected="true"]{color:#fff}
 .tabs button[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgb(0 0 0 / .12)}
 section{display:flex;flex-direction:column;gap:14px}
 select,input{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0;font-size:16px}
@@ -171,6 +173,7 @@ footer{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13p
     <button type="button" role="tab" id="tab-ranking" aria-selected="false">Ranking</button>
     <button type="button" role="tab" id="tab-hist" aria-selected="false">Histórico</button>
     <button type="button" role="tab" id="tab-met" aria-selected="false">Métricas</button>
+    <button type="button" role="tab" id="tab-aovivo" aria-selected="false">Ao vivo</button>
   </div>
 
   <!-- TREINO -->
@@ -278,6 +281,7 @@ footer{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13p
   </section>
 
   <!-- HISTÓRICO -->
+  <section id="p-aovivo" hidden></section>
   <section id="p-hist" hidden>
     <p class="stat" id="h-stat"></p>
     <ol class="list" id="h-list"></ol>
@@ -334,6 +338,7 @@ import { getAuth, onAuthStateChanged, signInAnonymously, GoogleAuthProvider, sig
 import { initializeFirestore, persistentLocalCache, collection, collectionGroup, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, ADMIN_EMAILS } from "./config.js";
 import { montarTorneio } from "./torneio.js";
+import { montarAoVivo } from "./aovivo.js";
 import { DOMINIO, entrarEditor, trocarSenha, criarEditor, ouvirEditores, ouvirSouEditor, removerEditor, usuarioDe, mudarPapel, nomePapel } from "./acesso.js";
 
 const app = initializeApp(firebaseConfig);
@@ -802,11 +807,27 @@ function renderAll(){
   renderSelect(); renderTreino(); renderPeriodos(); renderRanking(); renderHist(); if (!$("p-met").hidden) renderMetricas();
   const dl=$("nomes-conhecidos"); dl.textContent=""; nomesConhecidos().forEach(n=>{ const o=document.createElement("option"); o.value=n; dl.append(o); });
 }
-function showTab(t){ if (t==="met") renderMetricas(); ["treino","ranking","hist","met"].forEach(x=>{ $("p-"+x).hidden = x!==t; $("tab-"+x).setAttribute("aria-selected",String(x===t)); }); }
+function showTab(t){ if (t==="met") renderMetricas(); if (t==="aovivo") montarVivoTreino(); ["treino","ranking","hist","met","aovivo"].forEach(x=>{ $("p-"+x).hidden = x!==t; $("tab-"+x).setAttribute("aria-selected",String(x===t)); }); }
 $("tab-treino").onclick=()=>showTab("treino");
 $("tab-ranking").onclick=()=>showTab("ranking");
 $("tab-hist").onclick=()=>showTab("hist");
 $("tab-met").onclick=()=>showTab("met");
+$("tab-aovivo").onclick=()=>showTab("aovivo");
+// Ao vivo do treino/rachão/amistoso: mesmo canal do YouTube do Basquete; placar marcado à mão (+1/+2/+3, quartos e relógio)
+let vivoTreino = null;
+function montarVivoTreino(){
+  if (vivoTreino) return;
+  vivoTreino = montarAoVivo({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc }, toast, esporte:"basquete", col:"basquete_torneios",
+    app:"basquete-treino", canal:{ id:"UCYw3rRK0yoxx1wr7zAMnqYA", handle:"BasqueteMococa" }, canalDe:"basquete", instagram:"basketmococa",
+    placarManual:true, rotuloManual:"Rachão", rotulosManual:["Rachão","Amistoso","Treino"], podeEditar:()=>isAdmin||isEditor, torneio:()=>null, jogos:()=>[],
+    // amistosos cadastrados na aba Treino viram atalho (Basquete Mococa x adversário)
+    sugestoes:()=>Object.values(amistosos).filter(a=>a.data>=hoje()).sort((x,y)=>(x.data+x.hora).localeCompare(y.data+y.hora)).concat(Object.values(amistosos).filter(a=>a.data<hoje()).sort((x,y)=>(y.data+y.hora).localeCompare(x.data+x.hora))).slice(0,4)
+      .map(a=>({ nomeA:"Basquete Mococa", nomeB:a.adv||"Adversário", titulo:"Amistoso · Basquete Mococa x "+(a.adv||""), quando:curto(a.data)+" "+a.hora })),
+    marca:{ titulo:"Família Basquete Mococa", logo:"logo.jpg", escura:"#0c0c0d", cor:"#3f9a3c", destaque:"#ec6a2c" }, autor:()=>user ? (user.email||"") : null,
+    mudouVivo:()=>{ const v = vivoTreino && vivoTreino.estado() && vivoTreino.estado().aoVivo; $("tab-aovivo").textContent = v ? "● Ao vivo" : "Ao vivo"; $("tab-aovivo").classList.toggle("vivo", !!v); } });
+  $("p-aovivo").append(vivoTreino.tela());
+}
+setTimeout(montarVivoTreino, 1500);
 
 /* ---------- login ---------- */
 $("btn-admin").onclick = async ()=>{
