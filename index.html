@@ -819,7 +819,7 @@ function montarVivoTreino(){
   if (vivoTreino) return;
   vivoTreino = montarAoVivo({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc }, toast, esporte:"basquete", col:"basquete_torneios",
     app:"basquete-treino", canal:{ id:"UCYw3rRK0yoxx1wr7zAMnqYA", handle:"BasqueteMococa" }, canalDe:"basquete", instagram:"basketmococa",
-    placarManual:true, rotuloManual:"Rachão", rotulosManual:["Rachão","Amistoso","Treino"], podeEditar:()=>isAdmin||isEditor, torneio:()=>null, jogos:()=>[],
+    placarManual:true, rotuloManual:"Rachão", presentes:()=>lista(atual).map(p=>p.nome), rotulosManual:["Rachão","Amistoso","Treino"], podeEditar:()=>isAdmin||isEditor, torneio:()=>null, jogos:()=>[],
     // amistosos cadastrados na aba Treino viram atalho (Basquete Mococa x adversário)
     sugestoes:()=>Object.values(amistosos).filter(a=>a.data>=hoje()).sort((x,y)=>(x.data+x.hora).localeCompare(y.data+y.hora)).concat(Object.values(amistosos).filter(a=>a.data<hoje()).sort((x,y)=>(y.data+y.hora).localeCompare(x.data+x.hora))).slice(0,4)
       .map(a=>({ nomeA:"Basquete Mococa", nomeB:a.adv||"Adversário", titulo:"Amistoso · Basquete Mococa x "+(a.adv||""), quando:curto(a.data)+" "+a.hora })),
