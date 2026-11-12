@@ -41,32 +41,26 @@ header{display:flex;flex-direction:column;gap:6px}
 h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,8.5vw,38px);line-height:1;margin:0;text-transform:uppercase;letter-spacing:.01em;text-align:center}
 h1 span{display:block;font-family:var(--body);font-weight:600;text-transform:uppercase;font-size:.36em;color:var(--lane);letter-spacing:.14em;margin-top:6px}
 .logo{width:min(230px,62%);height:auto;margin:0 auto;display:block}
-/* logo animado (4 quadros: segura a bola, esmaga, estoura, comemora) */
-.logo-anim{position:relative;width:min(300px,78%);aspect-ratio:764/508;margin:0 auto;border-radius:16px;overflow:hidden;
-  box-shadow:0 0 0 1px rgb(63 154 60 / .35),0 10px 30px rgb(0 0 0 / .55);animation:aura-verde 3.2s ease-in-out infinite}
-.logo-anim img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .14s linear;transform:scale(1.001)}
-.logo-anim img.on{opacity:1}
-.logo-anim img.forte{transition-duration:.5s}
-.logo-anim.treme{animation:treme .32s linear,aura-verde 3.2s ease-in-out infinite}
-.logo-anim::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 55%,rgb(255 255 255 / .85),rgb(140 255 90 / .35) 35%,transparent 70%)}
-.logo-anim.flash::after{animation:flash-v .45s ease-out}
-@keyframes aura-verde{0%,100%{box-shadow:0 0 0 1px rgb(63 154 60 / .35),0 10px 30px rgb(0 0 0 / .55)}50%{box-shadow:0 0 0 1px rgb(110 230 80 / .7),0 0 26px 2px rgb(80 210 60 / .45),0 10px 30px rgb(0 0 0 / .55)}}
-@keyframes treme{0%,100%{transform:none}20%{transform:translate(-3px,2px) rotate(-.6deg)}40%{transform:translate(3px,-2px) rotate(.6deg)}60%{transform:translate(-2px,1px)}80%{transform:translate(2px,-1px)}}
-@keyframes flash-v{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+/* logo animado (4 quadros: segura a bola, esmaga, estoura, comemora).
+   Tudo roda em opacity/transform (camada da GPU) por uma linha do tempo única (Web Animations):
+   o quadro novo entra por cima do anterior, que só some quando o novo já cobriu tudo (sem "piscar" de brilho). */
+.logo-anim{position:relative;width:min(300px,78%);aspect-ratio:764/508;margin:0 auto;isolation:isolate}
+.logo-anim::before{content:"";position:absolute;inset:0;border-radius:16px;z-index:-1;box-shadow:0 0 0 1px rgb(110 230 80 / .7),0 0 28px 3px rgb(80 210 60 / .5);opacity:0;animation:aura-verde 3.2s ease-in-out infinite;will-change:opacity}
+.logo-anim .cam{position:absolute;inset:0;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px rgb(63 154 60 / .35),0 10px 30px rgb(0 0 0 / .55);will-change:transform;transform:translateZ(0)}
+.logo-anim img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;will-change:opacity,transform;backface-visibility:hidden}
+.logo-anim img:first-child{opacity:1}
+.logo-anim .clarao,.ab-palco .clarao{position:absolute;inset:0;pointer-events:none;opacity:0;will-change:opacity,transform;mix-blend-mode:screen}
+.logo-anim .clarao{background:radial-gradient(circle at 50% 55%,rgb(255 255 255 / .9),rgb(140 255 90 / .4) 35%,transparent 70%)}
+@keyframes aura-verde{0%,100%{opacity:0}50%{opacity:1}}
 /* abertura em tela cheia */
-#abertura{position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .55s ease;
+#abertura{position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
   padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
-#abertura.sai{opacity:0;pointer-events:none}
-.ab-palco{position:relative;width:min(94vw,560px,calc(80vh * 432 / 382));aspect-ratio:432/382;overflow:hidden;border-radius:18px}
-.ab-palco img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .16s linear}
-.ab-palco img.on{opacity:1}
-.ab-palco.zoom img.on{animation:ab-zoom 1.2s ease-out both}
-.ab-palco.treme{animation:treme .35s linear}
-.ab-palco::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 60%,#fff,rgb(255 170 60 / .6) 30%,transparent 70%)}
-.ab-palco.flash::after{animation:flash-v .5s ease-out}
-@keyframes ab-zoom{from{transform:scale(1.06)}to{transform:scale(1)}}
+.ab-palco{position:relative;width:min(94vw,560px,calc(80vh * 432 / 382));aspect-ratio:432/382;overflow:hidden;border-radius:18px;transform:translateZ(0)}
+.ab-palco .cam{position:absolute;inset:0;will-change:transform}
+.ab-palco img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;will-change:opacity,transform;backface-visibility:hidden}
+.ab-palco .clarao{background:radial-gradient(circle at 50% 60%,#fff,rgb(255 170 60 / .6) 30%,transparent 70%)}
 .ab-pular{background:transparent;color:#bbb;border:1px solid #444;border-radius:999px;padding:6px 16px;font-size:13px;min-height:0}
-@media (prefers-reduced-motion:reduce){.logo-anim,.ab-palco{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.logo-anim::before{animation:none}}
 .top{position:relative;justify-content:center!important}
 .admin-pill{position:absolute;right:0;top:0}
 h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0;text-transform:uppercase;letter-spacing:.02em}
@@ -186,35 +180,64 @@ footer{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13p
   <button type="button" class="ab-pular" id="ab-pular">Pular abertura</button>
 </div>
 <script>
-/* Abertura: o dinossauro esmaga e estoura a bola e vira o logo (9 quadros). Uma vez por sessão; tocar ou "Pular" encerra. */
+/* Abertura: o dinossauro esmaga e estoura a bola e vira o logo (9 quadros).
+   Linha do tempo única em Web Animations (roda no compositor, sem setTimeout entre quadros): dissolves com easing,
+   "câmera" em avanço contínuo, clarão e tremor amortecido no estouro. Uma vez por sessão; tocar ou "Pular" encerra. */
 (function(){
-  const ov=document.getElementById("abertura"); let fim=false;
-  function sair(){ if(fim) return; fim=true; ov.classList.add("sai"); setTimeout(()=>ov.remove(),600); window.dispatchEvent(new Event("abertura-fim")); }
+  const ov=document.getElementById("abertura"); let fim=false, anims=[];
   let ja=false; try{ ja=sessionStorage.getItem("bq-abertura")==="1"; sessionStorage.setItem("bq-abertura","1"); }catch(e){}
-  if (ja || matchMedia("(prefers-reduced-motion: reduce)").matches) { ov.remove(); window.__semAbertura=true; return; }
+  if (ja || matchMedia("(prefers-reduced-motion: reduce)").matches || !ov.animate) { ov.remove(); window.__semAbertura=true; return; }
+  function sair(){
+    if(fim) return; fim=true; window.dispatchEvent(new Event("abertura-fim"));
+    ov.animate([{opacity:1},{opacity:0}],{duration:550,easing:"cubic-bezier(.4,0,.2,1)",fill:"forwards"}).onfinish=()=>{ anims.forEach(x=>x.cancel()); ov.remove(); };
+    ov.style.pointerEvents="none";
+  }
   const palco=document.getElementById("ab-palco");
-  // tempos (ms) de cada quadro; 3 = bola estourando (clarão + tremor)
-  const T=[520,480,420,380,460,440,420,420,1100];
-  const imgs=T.map((_,i)=>{ const im=new Image(); im.src="anim/abre-"+i+".webp"; im.alt=""; im.decoding="async"; palco.append(im); return im; });
+  const cam=document.createElement("div"); cam.className="cam"; palco.append(cam);
+  const clarao=document.createElement("div"); clarao.className="clarao"; palco.append(clarao);
+  // início de cada quadro (s) e duração do dissolve de entrada; 3 = estouro (entra seco, com clarão)
+  const ini=[0, .62, 1.12, 1.52, 1.78, 2.18, 2.6, 3.02, 3.46], cf=[.35, .3, .26, .07, .2, .28, .3, .3, .42];
+  const FIM=4.5, D=FIM*1000, suave="cubic-bezier(.45,0,.25,1)";
+  const imgs=ini.map((_,i)=>{ const im=new Image(); im.src="anim/abre-"+i+".webp"; im.alt=""; im.decoding="async"; cam.append(im); return im; });
   ov.addEventListener("click", sair);
   const pronto=Promise.all(imgs.map(im=>im.decode?im.decode().catch(()=>{}):Promise.resolve()));
   const limite=setTimeout(sair, 3500); // internet lenta: não segura o app
+  const o=t=>Math.min(1,Math.max(0,t/FIM));
   pronto.then(()=>{
-    if (fim) return; clearTimeout(limite); palco.classList.add("zoom");
-    let i=0;
-    (function passo(){
-      if (fim) return;
-      imgs.forEach((im,k)=>im.classList.toggle("on",k===i));
-      if (i===3){ palco.classList.remove("flash","treme"); void palco.offsetWidth; palco.classList.add("flash","treme"); }
-      const d=T[i]; i++;
-      if (i<T.length) setTimeout(passo,d); else setTimeout(sair,d);
-    })();
+    if (fim) return; clearTimeout(limite);
+    imgs.forEach((im,i)=>{
+      const a=ini[i], c=cf[i], prox=i+1<ini.length ? ini[i+1]+cf[i+1] : FIM;   // some só quando o próximo já cobriu
+      const k=[{offset:0,opacity:0}];
+      if (a>0) k.push({offset:o(a),opacity:0,easing:suave});
+      k.push({offset:o(a+c),opacity:1});
+      if (i+1<ini.length){ k.push({offset:o(prox),opacity:1}); k.push({offset:Math.min(1,o(prox)+.001),opacity:0}); }
+      k.push({offset:1,opacity:i+1<ini.length?0:1});
+      anims.push(im.animate(k,{duration:D,fill:"both"}));
+      // cada quadro "respira" um pouco enquanto está na tela (deriva lenta, sem recomeçar do zero)
+      const ate=i+1<ini.length ? prox : FIM;
+      anims.push(im.animate([{offset:0,transform:"scale(1.02)"},{offset:o(a),transform:"scale(1.02)",easing:"cubic-bezier(.2,.6,.3,1)"},{offset:o(ate),transform:"scale(1)"},{offset:1,transform:"scale(1)"}],{duration:D,fill:"both"}));
+    });
+    // câmera: avanço contínuo + soco no estouro + tremor amortecido
+    const t3=ini[3];
+    anims.push(cam.animate([
+      {offset:0,transform:"scale(1.05)",easing:"cubic-bezier(.25,.1,.25,1)"},
+      {offset:o(t3),transform:"scale(1.0)",easing:"cubic-bezier(.2,.9,.3,1)"},
+      {offset:o(t3+.05),transform:"scale(1.045) translate(-1.2%,.8%) rotate(-.5deg)"},
+      {offset:o(t3+.11),transform:"scale(1.03) translate(1%,-.6%) rotate(.45deg)"},
+      {offset:o(t3+.18),transform:"scale(1.02) translate(-.6%,.4%) rotate(-.25deg)"},
+      {offset:o(t3+.26),transform:"scale(1.012) translate(.3%,-.2%) rotate(.1deg)"},
+      {offset:o(t3+.36),transform:"scale(1.008)",easing:"cubic-bezier(.4,0,.2,1)"},
+      {offset:o(ini[8]),transform:"scale(1.0)",easing:"cubic-bezier(.3,0,.2,1)"},
+      {offset:1,transform:"scale(1.025)"}
+    ],{duration:D,fill:"both"}));
+    anims.push(clarao.animate([{offset:0,opacity:0},{offset:o(t3-.02),opacity:0},{offset:o(t3+.04),opacity:1,transform:"scale(.9)"},{offset:o(t3+.5),opacity:0,transform:"scale(1.25)"},{offset:1,opacity:0}],{duration:D,fill:"both",easing:"linear"}));
+    anims[anims.length-1].onfinish=sair;
   });
 })();
 </script>
 <div class="wrap">
   <header>
-    <div class="top"><div class="logo-anim" id="logo-anim" role="img" aria-label="Família Basquete Mococa"><img class="on" src="anim/logo-0.webp" alt="" width="764" height="508"><img src="anim/logo-1.webp" alt="" width="764" height="508"><img src="anim/logo-2.webp" alt="" width="764" height="508"><img src="anim/logo-3.webp" alt="" width="764" height="508"></div><span class="admin-pill" id="admin-pill" hidden>Organizador</span></div>
+    <div class="top"><div class="logo-anim" id="logo-anim" role="img" aria-label="Família Basquete Mococa"><div class="cam"><img src="anim/logo-0.webp" alt="" width="764" height="508"><img src="anim/logo-1.webp" alt="" width="764" height="508"><img src="anim/logo-2.webp" alt="" width="764" height="508"><img src="anim/logo-3.webp" alt="" width="764" height="508"><div class="clarao"></div></div></div><span class="admin-pill" id="admin-pill" hidden>Organizador</span></div>
     <h1>Presença <span>domingo · 10:00 · AEM</span></h1>
   </header>
 
@@ -390,22 +413,48 @@ footer{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13p
 <div class="toast" id="toast" role="status"></div>
 
 <script>
-/* Logo animado: segura a bola → esmaga → estoura (clarão) → comemora → volta. Para em segundo plano e com movimento reduzido. */
+/* Logo animado: segura a bola → esmaga → estoura (clarão) → comemora → volta, em ciclo de 7 s.
+   Uma linha do tempo em Web Animations repetida sem fim (compositor, sem timers): quadro 0 fica sempre embaixo,
+   os outros entram por cima com dissolve e só somem quando o seguinte já cobriu; a volta é um dissolve lento do 3 para o 0. */
 (function(){
-  const box=document.getElementById("logo-anim"); if(!box || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const im=[...box.querySelectorAll("img")];
-  const seq=[[0,2600],[1,380],[2,420],[3,2300]];
-  let k=0, t=null;
-  function mostra(i, forte){ im.forEach((x,j)=>{ x.classList.toggle("forte",!!forte); x.classList.toggle("on",j===i); }); }
-  function passo(){
-    const [i,d]=seq[k];
-    mostra(i, i===0);
-    if (i===2){ box.classList.remove("flash","treme"); void box.offsetWidth; box.classList.add("flash","treme"); }
-    k=(k+1)%seq.length; t=setTimeout(passo,d);
+  const box=document.getElementById("logo-anim"); if(!box || !box.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cam=box.querySelector(".cam"), im=[...box.querySelectorAll("img")], clarao=box.querySelector(".clarao");
+  const L=7.0, D=L*1000, o=t=>Math.min(1,Math.max(0,t/L)), suave="cubic-bezier(.45,0,.25,1)";
+  // quadro: início, dissolve de entrada
+  const q1=[2.6,.22], q2=[3.02,.08], q3=[3.42,.26], volta=[5.9,.75];
+  const anims=[];
+  function camada(el, ent, sai){ // sai = instante em que o próximo já cobriu (some sem ser visto)
+    const k=[{offset:0,opacity:0},{offset:o(ent[0]),opacity:0,easing:suave},{offset:o(ent[0]+ent[1]),opacity:1}];
+    if (sai!=null){ k.push({offset:o(sai),opacity:1},{offset:o(sai)+.0005,opacity:0}); }
+    k.push({offset:1,opacity:0}); return el.animate(k,{duration:D,iterations:Infinity,fill:"both"});
   }
-  function inicia(){ clearTimeout(t); k=0; t=setTimeout(passo,900); }
-  document.addEventListener("visibilitychange",()=>{ if(document.hidden){ clearTimeout(t); mostra(0,true); } else inicia(); });
-  box.addEventListener("click",()=>{ clearTimeout(t); k=1; passo(); });
+  function montar(){
+    anims.push(camada(im[1], q1, q2[0]+q2[1]));
+    anims.push(camada(im[2], q2, q3[0]+q3[1]));
+    anims.push(im[3].animate([{offset:0,opacity:0},{offset:o(q3[0]),opacity:0,easing:suave},{offset:o(q3[0]+q3[1]),opacity:1},{offset:o(volta[0]),opacity:1,easing:"cubic-bezier(.4,0,.2,1)"},{offset:o(volta[0]+volta[1]),opacity:0},{offset:1,opacity:0}],{duration:D,iterations:Infinity,fill:"both"}));
+    // câmera: respiração lenta, puxada antes do esmagamento, soco + tremor amortecido no estouro, assenta na comemoração
+    const t=q2[0];
+    anims.push(cam.animate([
+      {offset:0,transform:"scale(1)",easing:"ease-in-out"},
+      {offset:o(1.3),transform:"scale(1.012)",easing:"ease-in-out"},
+      {offset:o(q1[0]),transform:"scale(1)",easing:"cubic-bezier(.5,0,.75,0)"},
+      {offset:o(t),transform:"scale(.985)",easing:"cubic-bezier(.2,.9,.3,1)"},
+      {offset:o(t+.05),transform:"scale(1.04) translate(-1%,.7%) rotate(-.5deg)"},
+      {offset:o(t+.11),transform:"scale(1.03) translate(.9%,-.5%) rotate(.4deg)"},
+      {offset:o(t+.18),transform:"scale(1.02) translate(-.5%,.3%) rotate(-.2deg)"},
+      {offset:o(t+.27),transform:"scale(1.012) translate(.2%,-.1%)"},
+      {offset:o(t+.4),transform:"scale(1.01)",easing:"ease-in-out"},
+      {offset:o(4.6),transform:"scale(1.018)",easing:"ease-in-out"},
+      {offset:o(volta[0]),transform:"scale(1.005)",easing:"ease-in-out"},
+      {offset:1,transform:"scale(1)"}
+    ],{duration:D,iterations:Infinity,fill:"both"}));
+    anims.push(clarao.animate([{offset:0,opacity:0},{offset:o(t-.02),opacity:0,transform:"scale(.9)"},{offset:o(t+.05),opacity:1,transform:"scale(.95)"},{offset:o(t+.55),opacity:0,transform:"scale(1.2)"},{offset:1,opacity:0}],{duration:D,iterations:Infinity,fill:"both"}));
+  }
+  function inicia(){
+    Promise.all(im.map(x=>x.decode?x.decode().catch(()=>{}):0)).then(()=>{ if(!anims.length) montar(); });
+  }
+  // tocar no logo: pula direto para o esmagamento (sem cortar: leva a linha do tempo até ali)
+  box.addEventListener("click",()=>{ if(!anims.length) return; const pos=anims[0].currentTime % D; const alvo=(q1[0]-.25)*1000; if (pos<alvo) anims.forEach(a=>a.currentTime=a.currentTime+(alvo-pos)); });
   if (window.__semAbertura || !document.getElementById("abertura")) inicia(); else window.addEventListener("abertura-fim", inicia, {once:true});
 })();
 </script>
